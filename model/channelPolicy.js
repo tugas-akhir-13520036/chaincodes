@@ -2,6 +2,7 @@ const { ATTR_STATUS } = require('./constant');
 
 class ChannelPolicyModel {
     constructor(uid, name, policies) {
+        this.docType = 'channelPolicy';
         this.channelId = uid;
         this.name = name;
         this.policies = {};
@@ -17,6 +18,17 @@ class ChannelPolicyModel {
                     updatedAt: new Date()
                 }
             }
+        }
+    }
+
+    getJSON() {
+        return {
+            docType: this.docType,
+            channelId: this.channelId,
+            name: this.name,
+            policies: this.policies,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt
         }
     }
 }
