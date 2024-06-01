@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "fabric-contract-api": "^2.5.4",
-    "fabric-shim": "^2.5.4"
+    "fabric-shim": "^2.5.4",
+    "uuid": "^9.0.1"
   }
 }

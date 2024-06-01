@@ -1,7 +1,7 @@
 const { ATTR_STATUS } = require('./constant');
 
 class MerchantAttrModel {
-    constructor(uid, name, attributes) {
+    constructor(uid, name, attributes = {}) {
         this.docType = 'merchantAttr';
         this.merchantId = uid;
         this.name = name;
