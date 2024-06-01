@@ -116,7 +116,7 @@ class MerchantAttrAssetTransfer extends Contract {
         }
 
         const attrId = uuidv4();
-        const idempotentKey = `${attributeName}_${attrId}`;
+        const idempotentKey = `attr_${attrId}`;
         const newAttribute = {
             idempotentKey: idempotentKey,
             value: attributeValue,
