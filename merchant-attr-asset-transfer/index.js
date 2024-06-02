@@ -3,7 +3,7 @@
 const { Contract } = require('fabric-contract-api');
 const { v4: uuidv4 } = require('uuid');
 
-const DOC_TYPE = "merchant";
+const DOC_TYPE = "merchantAttr";
 
 // Define the list of attribute statuses
 const ATTR_STATUS = {
@@ -37,13 +37,16 @@ const attributeList = [
     { name: 'currency', type: ATTR_TYPE.STRING }, // e.g. USD, EUR, etc.
     { name: 'created_year', type: ATTR_TYPE.NUMBER },
     { name: 'created_month', type: ATTR_TYPE.NUMBER },
+    { name: 'total_payment_volume', type: ATTR_TYPE.NUMBER },
+    { name: 'total_payment_count', type: ATTR_TYPE.NUMBER },
+    { name: 'total_revenue', type: ATTR_TYPE.NUMBER },
 ]
 
 const isAttributeValid = (attribute) => {
     return attributeList.some(attr => attr.name === attribute);
 }
 
-const validateMerchant = async (ctx, merchantId) => {
+const validateAndGetMerchant = async (ctx, merchantId) => {
     const merchantAsBytes = await ctx.stub.getState(merchantId);
     if (!merchantAsBytes || merchantAsBytes.length === 0) {
         throw new Error(`Merchant with merchantId ${merchantId} does not exist`);
@@ -59,7 +62,7 @@ const validateMerchant = async (ctx, merchantId) => {
 
 class MerchantAttrAssetTransfer extends Contract {
     async initLedger(ctx) {
-        console.info('Initialized the ledger');
+        console.info('[INFO] Initialized the ledger for merchant attribute asset transfer');
     }
 
     async getAttributesList(ctx) {
@@ -79,6 +82,8 @@ class MerchantAttrAssetTransfer extends Contract {
         };
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
+
+        return merchantId;
     }
 
     async fetchAllMerchantData(ctx) {
@@ -104,12 +109,12 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchMerchantData(ctx, merchantId) {
-        const merchant = await validateMerchant(ctx, merchantId);
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
         return merchant;
     }
 
     async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue) {
-        const merchant = await validateMerchant(ctx, merchantId);
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!isAttributeValid(attributeName)) {
             throw new Error(`Attribute ${attributeName} is not valid`);
@@ -131,14 +136,14 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchPendingMerchantAttr(ctx, merchantId) {
-        const merchant = await validateMerchant(ctx, merchantId);
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         const pendingAttributes = Object.keys(merchant.attributes).filter(attr => merchant.attributes[attr].status === ATTR_STATUS.PENDING);
         return pendingAttributes;
     }
 
     async activateMerchantAttr(ctx, merchantId, attributeName) {
-        const merchant = await validateMerchant(ctx, merchantId);
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
             throw new Error(`Attribute ${attributeName} does not exist`);
