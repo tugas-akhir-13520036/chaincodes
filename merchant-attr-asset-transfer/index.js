@@ -69,16 +69,15 @@ class MerchantAttrAssetTransfer extends Contract {
         return attributeList;
     }
 
-    async createMerchant(ctx, name) {
-        const uuid = uuidv4();
+    async createMerchant(ctx, name, uuid, date) {
         const merchantId = `merchant_${uuid}`;
         const merchant = {
             docType: DOC_TYPE,
             merchantId,
             name,
             attributes: {},
-            createdAt: new Date(),
-            updatedAt: new Date()
+            createdAt: date,
+            updatedAt: date
         };
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
