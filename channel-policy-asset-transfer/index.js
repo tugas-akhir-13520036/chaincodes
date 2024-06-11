@@ -1,50 +1,19 @@
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
-const { v4: uuidv4 } = require('uuid');
+const { attributeList, defaultOperatorList } = require('./constant');
 const JRE = require('json-rules-engine');
 
 const DOC_TYPE = "channelPolicy";
 
-// Define the list of attributes that can be stored for a merchant
-const attributeList = [
-    { name: 'name', type: ATTR_TYPE.STRING },
-    { name: 'email', type: ATTR_TYPE.STRING },
-    { name: 'phone', type: ATTR_TYPE.STRING },
-    { name: 'description', type: ATTR_TYPE.STRING },
-    { name: 'address', type: ATTR_TYPE.STRING },
-    { name: 'city', type: ATTR_TYPE.STRING },
-    { name: 'state', type: ATTR_TYPE.STRING },
-    { name: 'country', type: ATTR_TYPE.STRING }, // e.g. US, UK, etc.
-    { name: 'category', type: ATTR_TYPE.STRING }, // e.g. restaurant, retail, etc.
-    { name: 'businessType', type: ATTR_TYPE.STRING }, // e.g. B2B, B2C, etc.
-    { name: 'businessModel', type: ATTR_TYPE.STRING }, // e.g. marketplace, aggregator, etc.
-    { name: 'timezone', type: ATTR_TYPE.STRING }, // e.g. UTC, GMT, etc.
-    { name: 'currency', type: ATTR_TYPE.STRING }, // e.g. USD, EUR, etc.
-    { name: 'created_year', type: ATTR_TYPE.NUMBER },
-    { name: 'created_month', type: ATTR_TYPE.NUMBER },
-    { name: 'total_payment_volume', type: ATTR_TYPE.NUMBER },
-    { name: 'total_payment_count', type: ATTR_TYPE.NUMBER },
-    { name: 'total_revenue', type: ATTR_TYPE.NUMBER },
-]
+const isAttributeValid = (key, value) => {
+    const attribute = attributeList.find(attr => attr.name === key);
+    if (!attribute) return false;
 
-const isAttributeValid = (attribute) => {
-    return attributeList.some(attr => attr.name === attribute);
+    if (!attribute.validationFunc(value)) return false;
+
+    return true;
 }
-
-// Define the list of operators that can be used in the policy
-const defaultOperatorList = [
-    {name: 'equal'},
-    {name: 'notEqual'},
-    {name: 'in'},
-    {name: 'notIn'},
-    {name: 'contains'},
-    {name: 'doesNotContain'},
-    {name: 'lessThan'},
-    {name: 'lessThanInclusive'},
-    {name: 'greaterThan'},
-    {name: 'greaterThanInclusive'}
-]
 
 const isOperatorValid = (operator) => {
     return defaultOperatorList.some(op => op.name === operator);
@@ -73,16 +42,15 @@ class ChannelPolicyAssetTransfer extends Contract {
         return defaultOperatorList;
     }
 
-    async createPaymentChannel(ctx, name) {
-        const uuid = uuidv4();
+    async createPaymentChannel(ctx, name, uuid, date) {
         const channelId = `channel_${uuid}`;
         const channel = {
             docType: DOC_TYPE,
             channelId,
             name,
             policies: {},
-            createdAt: new Date(),
-            updatedAt: new Date()
+            createdAt: date,
+            updatedAt: date
         };
 
         await ctx.stub.putState(channelId, Buffer.from(JSON.stringify(channel)));
@@ -95,7 +63,7 @@ class ChannelPolicyAssetTransfer extends Contract {
         return channel;
     }
 
-    async upsertChannelPolicy(ctx, uid, policyName, operator, value) {
+    async upsertChannelPolicy(ctx, uid, policyName, value, operator, date) {
         const channel = await validateAndGetChannel(ctx, uid);
 
         if (!isOperatorValid(operator)) {
@@ -103,15 +71,15 @@ class ChannelPolicyAssetTransfer extends Contract {
         }
 
         // policyName is the attribute name
-        if (!isAttributeValid(policyName)) {
+        if (!isAttributeValid(policyName, value)) {
             throw new Error(`Attribute ${policyName} is not valid`);
         }
 
         channel.policies[policyName] = {
             operator,
             value,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            createdAt: date,
+            updatedAt: date
         };
 
         await ctx.stub.putState(uid, Buffer.from(JSON.stringify(channel)));

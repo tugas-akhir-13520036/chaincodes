@@ -1,7 +1,6 @@
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
-const { v4: uuidv4 } = require('uuid');
 
 const { attributeList } = require('./constant');
 
