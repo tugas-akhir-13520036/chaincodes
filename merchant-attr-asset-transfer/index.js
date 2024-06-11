@@ -3,6 +3,8 @@
 const { Contract } = require('fabric-contract-api');
 const { v4: uuidv4 } = require('uuid');
 
+const { attributeList } = require('./constant');
+
 const DOC_TYPE = "merchantAttr";
 
 // Define the list of attribute statuses
@@ -20,30 +22,13 @@ const ATTR_TYPE = {
     DATE: 'DATE',
 };
 
-// Define the list of attributes that can be stored for a merchant
-const attributeList = [
-    { name: 'name', type: ATTR_TYPE.STRING },
-    { name: 'email', type: ATTR_TYPE.STRING },
-    { name: 'phone', type: ATTR_TYPE.STRING },
-    { name: 'description', type: ATTR_TYPE.STRING },
-    { name: 'address', type: ATTR_TYPE.STRING },
-    { name: 'city', type: ATTR_TYPE.STRING },
-    { name: 'state', type: ATTR_TYPE.STRING },
-    { name: 'country', type: ATTR_TYPE.STRING }, // e.g. US, UK, etc.
-    { name: 'category', type: ATTR_TYPE.STRING }, // e.g. restaurant, retail, etc.
-    { name: 'businessType', type: ATTR_TYPE.STRING }, // e.g. B2B, B2C, etc.
-    { name: 'businessModel', type: ATTR_TYPE.STRING }, // e.g. marketplace, aggregator, etc.
-    { name: 'timezone', type: ATTR_TYPE.STRING }, // e.g. UTC, GMT, etc.
-    { name: 'currency', type: ATTR_TYPE.STRING }, // e.g. USD, EUR, etc.
-    { name: 'created_year', type: ATTR_TYPE.NUMBER },
-    { name: 'created_month', type: ATTR_TYPE.NUMBER },
-    { name: 'total_payment_volume', type: ATTR_TYPE.NUMBER },
-    { name: 'total_payment_count', type: ATTR_TYPE.NUMBER },
-    { name: 'total_revenue', type: ATTR_TYPE.NUMBER },
-]
+const isAttributeValid = (key, value) => {
+    const attribute = attributeList.find(attr => attr.name === key);
+    if (!attribute) return false;
 
-const isAttributeValid = (attribute) => {
-    return attributeList.some(attr => attr.name === attribute);
+    if (!attribute.validationFunc(value)) return false;
+
+    return true;
 }
 
 const validateAndGetMerchant = async (ctx, merchantId) => {
@@ -112,21 +97,20 @@ class MerchantAttrAssetTransfer extends Contract {
         return merchant;
     }
 
-    async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue) {
+    async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue, uuid, date) {
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
-        if (!isAttributeValid(attributeName)) {
+        if (!isAttributeValid(attributeName, attributeValue)) {
             throw new Error(`Attribute ${attributeName} is not valid`);
         }
 
-        const attrId = uuidv4();
-        const idempotentKey = `attr_${attrId}`;
+        const idempotentKey = `attr_${uuid}`;
         const newAttribute = {
             idempotentKey: idempotentKey,
             value: attributeValue,
             status: ATTR_STATUS.PENDING,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            createdAt: date,
+            updatedAt: date
         };
 
         merchant.attributes[attributeName] = newAttribute;
@@ -141,7 +125,7 @@ class MerchantAttrAssetTransfer extends Contract {
         return pendingAttributes;
     }
 
-    async activateMerchantAttr(ctx, merchantId, attributeName) {
+    async activateMerchantAttr(ctx, merchantId, attributeName, date) {
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
@@ -149,7 +133,7 @@ class MerchantAttrAssetTransfer extends Contract {
         }
 
         merchant.attributes[attributeName].status = ATTR_STATUS.ACTIVE;
-        merchant.attributes[attributeName].updatedAt = new Date();
+        merchant.attributes[attributeName].updatedAt = date;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
