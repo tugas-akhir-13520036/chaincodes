@@ -44,6 +44,25 @@ class ChannelPolicyAssetTransfer extends Contract {
         return channelId;
     }
 
+    async fetchAllPaymentChannelData(ctx) {
+        const startKey = 'channel_';
+        const endKey = 'channel_z';
+
+        const iterator = await ctx.stub.getStateByRange(startKey, endKey);
+        const allResults = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                allResults.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return allResults;
+    }
+
     async fetchChannelData(ctx, uid) {
         const channel = await validateAndGetChannel(ctx, uid);
         return channel;
@@ -53,17 +72,33 @@ class ChannelPolicyAssetTransfer extends Contract {
         const channel = await validateAndGetChannel(ctx, uid);
         value = normalizeValue(value, policyName);
 
-        isOperatorValid(operator)
+        isOperatorValid(operator, policyName, value)
         isAttributeValid(policyName, value)
 
         channel.policies[policyName] = {
             operator,
             value,
             createdAt: date,
-            updatedAt: date
         };
+        channel.updatedAt = date;
 
         await ctx.stub.putState(uid, Buffer.from(JSON.stringify(channel)));
+    }
+
+    async queryHistory(ctx, uid) {
+        let iterator = await ctx.stub.getHistoryForKey(uid);
+        let result = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                result.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return result; 
     }
 }
 

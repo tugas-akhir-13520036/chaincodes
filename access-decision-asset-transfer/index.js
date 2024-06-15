@@ -3,6 +3,12 @@
 const { Contract } = require('fabric-contract-api');
 const { Engine } = require('json-rules-engine');
 
+const ATTR_STATUS = {
+    PENDING: 'PENDING',
+    ACTIVE: 'ACTIVE',
+    INACTIVE: 'INACTIVE'
+};
+
 const validateAndGetMerchant = async (ctx, merchantId) => {
     const merchantAsBytes = await ctx.stub.getState(merchantId);
     if (!merchantAsBytes || merchantAsBytes.length === 0) {
@@ -71,7 +77,7 @@ const generateFact = (merchant) => {
     for (let key in attributes) {
         if (attributes.hasOwnProperty(key)) {
             const attribute = attributes[key];
-            fact[key] = attribute.value;
+            if (attribute.status === ATTR_STATUS.ACTIVE) fact[key] = attribute.value;
         }
     }
 

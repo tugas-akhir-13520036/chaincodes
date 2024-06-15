@@ -21,6 +21,7 @@ const convertToBoolean = (value) => {
 const attributeList = [
     { 
         name: 'name',
+        type: attrType.STRING,
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
@@ -28,6 +29,7 @@ const attributeList = [
     },
     { 
         name: 'email', 
+        type: attrType.STRING,
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             if (!value.match(/\S+@\S+\.\S+/)) return false;
@@ -36,6 +38,7 @@ const attributeList = [
     },
     { 
         name: 'phone',
+        type: attrType.STRING,
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             if (!value.match(/^\d{10}$/)) return false;
@@ -44,6 +47,7 @@ const attributeList = [
     },
     { 
         name: 'description', 
+        type: attrType.STRING,
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
@@ -51,6 +55,7 @@ const attributeList = [
     },
     { 
         name: 'address', 
+        type: attrType.STRING,
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
@@ -62,7 +67,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
     },
     { 
         name: 'state',
@@ -70,7 +76,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
     },
     { 
         name: 'country',
@@ -79,7 +86,8 @@ const attributeList = [
             if (typeof value !== 'string') return false;
             if (!value.match(/^[A-Z]{2}$/)) return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
     }, // e.g. US, UK, etc.
     {
         name: 'category',
@@ -87,7 +95,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
      }, // e.g. restaurant, retail, etc.
     { 
         name: 'businessType', 
@@ -95,7 +104,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
     }, // e.g. B2B, B2C, etc.
     { 
         name: 'businessModel',
@@ -103,8 +113,9 @@ const attributeList = [
         validationFunc: (value) => {
             if (typeof value !== 'string') return false;
             return true;
-        } 
-    },
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
+    }, // e.g. marketplace, aggregator, etc.
     { 
         name: 'currency',
         type: attrType.STRING,
@@ -112,7 +123,8 @@ const attributeList = [
             if (typeof value !== 'string') return false;
             if (!value.match(/^[A-Z]{3}$/)) return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn']
     }, // e.g. USD, EUR, etc.
     { 
         name: 'created_year',
@@ -121,7 +133,8 @@ const attributeList = [
             if (!value || typeof value !== 'number') return false;
             if (value > new Date().getFullYear()) return false;
             return true;
-        }
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn', 'lessThan', 'lessThanInclusive', 'greaterThan', 'greaterThanInclusive']
     },
     { 
         name: 'created_month', 
@@ -130,7 +143,8 @@ const attributeList = [
             if (!value || typeof value !== 'number') return false;
             if (value < 1 || value > 12) return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual', 'in', 'notIn', 'lessThan', 'lessThanInclusive', 'greaterThan', 'greaterThanInclusive']
     },
     { 
         name: 'total_payment_volume',
@@ -138,7 +152,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (!value || typeof value !== 'number') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual', 'lessThan', 'lessThanInclusive', 'greaterThan', 'greaterThanInclusive']
     },
     { 
         name: 'total_payment_count', 
@@ -146,7 +161,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (!value || typeof value !== 'number') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual', 'lessThan', 'lessThanInclusive', 'greaterThan', 'greaterThanInclusive']
     },
     { 
         name: 'total_revenue', 
@@ -154,7 +170,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (!value || typeof value !== 'number') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual', 'lessThan', 'lessThanInclusive', 'greaterThan', 'greaterThanInclusive']
     },
     { 
         name: 'is_corporate', 
@@ -162,7 +179,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (!value || typeof value !== 'boolean') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual']
     },
     { 
         name: 'is_website_valid',
@@ -170,7 +188,8 @@ const attributeList = [
         validationFunc: (value) => {
             if (!value || typeof value !== 'boolean') return false;
             return true;
-        } 
+        },
+        policyOps: ['equal', 'notEqual']
     },
 ]
 
@@ -211,9 +230,24 @@ const isAttributeValid = (key, value) => {
     return true;
 }
 
-const isOperatorValid = (operator) => {
+const isOperatorValid = (operator, key, value) => {
     const flag = defaultOperatorList.some(op => op.name === operator);
     if (!flag) throw new Error(`Operator ${operator} is not valid`);
+
+    if (value === undefined || value === null) {
+        if (operator === 'equal') throw new Error(`Operator ${operator} is not valid for null value`);
+        if (operator === 'notEqual') throw new Error(`Operator ${operator} is not valid for null value`);
+    }
+
+    const attribute = attributeList.find(attr => attr.name === key);
+    if (!attribute) throw new Error(`Attribute ${key} is not valid`);
+
+    const policyOps = attribute.policyOps;
+    if (!policyOps) return true;
+
+    if (!policyOps.includes(operator)) throw new Error(`Operator ${operator} is not valid for attribute ${key}`);
+
+    return true;
 }
 
 module.exports = { 

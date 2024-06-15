@@ -2,7 +2,7 @@
 
 const { Contract } = require('fabric-contract-api');
 
-const { isAttributeValid, normalizeValue } = require('./constant');
+const { attributeList, isAttributeValid, normalizeValue } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
 
@@ -80,7 +80,7 @@ class MerchantAttrAssetTransfer extends Contract {
 
     async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue, uuid, date) {
         const merchant = await validateAndGetMerchant(ctx, merchantId);
-        attributeValue = normalizeValue(attributeValue, policyName);
+        attributeValue = normalizeValue(attributeValue, attributeName);
 
         if (!isAttributeValid(attributeName, attributeValue)) {
             throw new Error(`Attribute ${attributeName} is not valid`);
@@ -96,6 +96,7 @@ class MerchantAttrAssetTransfer extends Contract {
         };
 
         merchant.attributes[attributeName] = newAttribute;
+        merchant.updatedAt = date;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
@@ -104,7 +105,13 @@ class MerchantAttrAssetTransfer extends Contract {
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         const pendingAttributes = Object.keys(merchant.attributes).filter(attr => merchant.attributes[attr].status === ATTR_STATUS.PENDING);
-        return pendingAttributes;
+
+        const result = {};
+        pendingAttributes.forEach(attr => {
+            result[attr] = merchant.attributes[attr];
+        });
+
+        return result;
     }
 
     async activateMerchantAttr(ctx, merchantId, attributeName, date) {
@@ -116,8 +123,39 @@ class MerchantAttrAssetTransfer extends Contract {
 
         merchant.attributes[attributeName].status = ATTR_STATUS.ACTIVE;
         merchant.attributes[attributeName].updatedAt = date;
+        merchant.updatedAt = date;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
+    }
+
+    async deactivateMerchantAttr(ctx, merchantId, attributeName, date) {
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
+
+        if (!merchant.attributes[attributeName]) {
+            throw new Error(`Attribute ${attributeName} does not exist`);
+        }
+
+        merchant.attributes[attributeName].status = ATTR_STATUS.INACTIVE;
+        merchant.attributes[attributeName].updatedAt = date;
+        merchant.updatedAt = date;
+
+        await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
+    }
+
+    async queryHistory(ctx, uid) {
+        let iterator = await ctx.stub.getHistoryForKey(uid);
+        let result = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                result.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return result; 
     }
 }
 
