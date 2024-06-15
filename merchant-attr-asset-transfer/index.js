@@ -2,33 +2,15 @@
 
 const { Contract } = require('fabric-contract-api');
 
-const { attributeList } = require('./constant');
+const { isAttributeValid } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
 
-// Define the list of attribute statuses
 const ATTR_STATUS = {
     PENDING: 'PENDING',
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE'
 };
-
-// Define the list of attribute types
-const ATTR_TYPE = {
-    STRING: 'STRING',
-    NUMBER: 'NUMBER',
-    BOOLEAN: 'BOOLEAN',
-    DATE: 'DATE',
-};
-
-const isAttributeValid = (key, value) => {
-    const attribute = attributeList.find(attr => attr.name === key);
-    if (!attribute) return false;
-
-    if (!attribute.validationFunc(value)) return false;
-
-    return true;
-}
 
 const validateAndGetMerchant = async (ctx, merchantId) => {
     const merchantAsBytes = await ctx.stub.getState(merchantId);

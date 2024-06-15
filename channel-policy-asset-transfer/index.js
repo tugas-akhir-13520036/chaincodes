@@ -1,23 +1,9 @@
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
-const { attributeList, defaultOperatorList } = require('./constant');
-const JRE = require('json-rules-engine');
+const { defaultOperatorList, normalizeValue, isAttributeValid, isOperatorValid } = require('./constant');
 
 const DOC_TYPE = "channelPolicy";
-
-const isAttributeValid = (key, value) => {
-    const attribute = attributeList.find(attr => attr.name === key);
-    if (!attribute) return false;
-
-    if (!attribute.validationFunc(value)) return false;
-
-    return true;
-}
-
-const isOperatorValid = (operator) => {
-    return defaultOperatorList.some(op => op.name === operator);
-}
 
 const validateAndGetChannel = async (ctx, channelId) => {
     const channelAsBytes = await ctx.stub.getState(channelId);
@@ -65,15 +51,12 @@ class ChannelPolicyAssetTransfer extends Contract {
 
     async upsertChannelPolicy(ctx, uid, policyName, value, operator, date) {
         const channel = await validateAndGetChannel(ctx, uid);
+        console.log('VALUE upsertChannelPolicy', value)
+        value = normalizeValue(value, policyName);
+        console.log('VALUE upsertChannelPolicy', value)
 
-        if (!isOperatorValid(operator)) {
-            throw new Error(`Operator ${operator} is not valid`);
-        }
-
-        // policyName is the attribute name
-        if (!isAttributeValid(policyName, value)) {
-            throw new Error(`Attribute ${policyName} is not valid`);
-        }
+        isOperatorValid(operator)
+        isAttributeValid(policyName, value)
 
         channel.policies[policyName] = {
             operator,
