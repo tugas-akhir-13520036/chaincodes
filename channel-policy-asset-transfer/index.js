@@ -51,9 +51,7 @@ class ChannelPolicyAssetTransfer extends Contract {
 
     async upsertChannelPolicy(ctx, uid, policyName, value, operator, date) {
         const channel = await validateAndGetChannel(ctx, uid);
-        console.log('VALUE upsertChannelPolicy', value)
         value = normalizeValue(value, policyName);
-        console.log('VALUE upsertChannelPolicy', value)
 
         isOperatorValid(operator)
         isAttributeValid(policyName, value)

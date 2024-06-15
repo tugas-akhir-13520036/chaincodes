@@ -2,7 +2,7 @@
 
 const { Contract } = require('fabric-contract-api');
 
-const { isAttributeValid } = require('./constant');
+const { isAttributeValid, normalizeValue } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
 
@@ -80,6 +80,7 @@ class MerchantAttrAssetTransfer extends Contract {
 
     async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue, uuid, date) {
         const merchant = await validateAndGetMerchant(ctx, merchantId);
+        attributeValue = normalizeValue(attributeValue, policyName);
 
         if (!isAttributeValid(attributeName, attributeValue)) {
             throw new Error(`Attribute ${attributeName} is not valid`);
