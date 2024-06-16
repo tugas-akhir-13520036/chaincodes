@@ -31,12 +31,16 @@ class MerchantAttrAssetTransfer extends Contract {
         console.info('[INFO] Initialized the ledger for merchant attribute asset transfer');
     }
 
+    _getCommonNameFromId(idString) {
+        const match = idString.match(/CN=([^:]+)/);
+        return match ? match[1] : null;
+    }
+
     async getAttributesList(ctx) {
         return attributeList;
     }
 
-    async createMerchant(ctx, name, uuid, date) {
-        const merchantId = `merchant_${uuid}`;
+    async createMerchant(ctx, name, merchantId, date) {
         const merchant = {
             docType: DOC_TYPE,
             merchantId,
@@ -57,18 +61,28 @@ class MerchantAttrAssetTransfer extends Contract {
 
         const iterator = await ctx.stub.getStateByRange(startKey, endKey);
         const allResults = [];
+        let res = await iterator.next();
 
-        for await (const res of iterator) {
-            const strValue = Buffer.from(res.value).toString('utf8');
-            let record;
-            try {
-                record = JSON.parse(strValue);
-            } catch (err) {
-                console.log(err);
-                record = strValue;
+        while(!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                allResults.push(obj);
             }
-            allResults.push({ Key: res.key, Record: record });
+            res = await iterator.next();
         }
+
+        // for await (const res of iterator) {
+        //     const strValue = Buffer.from(res.value).toString('utf8');
+        //     let record;
+        //     try {
+        //         record = JSON.parse(strValue);
+        //     } catch (err) {
+        //         console.log(err);
+        //         record = strValue;
+        //     }
+        //     allResults.push({ Key: res.key, Record: record });
+        // }
 
         return allResults;
     }
@@ -86,17 +100,20 @@ class MerchantAttrAssetTransfer extends Contract {
             throw new Error(`Attribute ${attributeName} is not valid`);
         }
 
+        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const idempotentKey = `attr_${uuid}`;
         const newAttribute = {
             idempotentKey: idempotentKey,
             value: attributeValue,
             status: ATTR_STATUS.PENDING,
             createdAt: date,
-            updatedAt: date
+            updatedAt: date,
+            updatedBy: userId,
         };
 
         merchant.attributes[attributeName] = newAttribute;
         merchant.updatedAt = date;
+        merchant.updatedBy = userId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
@@ -121,9 +138,13 @@ class MerchantAttrAssetTransfer extends Contract {
             throw new Error(`Attribute ${attributeName} does not exist`);
         }
 
+        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+
         merchant.attributes[attributeName].status = ATTR_STATUS.ACTIVE;
         merchant.attributes[attributeName].updatedAt = date;
+        merchant.attributes[attributeName].updatedBy = userId;
         merchant.updatedAt = date;
+        merchant.updatedBy = userId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
@@ -135,9 +156,13 @@ class MerchantAttrAssetTransfer extends Contract {
             throw new Error(`Attribute ${attributeName} does not exist`);
         }
 
+        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+
         merchant.attributes[attributeName].status = ATTR_STATUS.INACTIVE;
         merchant.attributes[attributeName].updatedAt = date;
+        merchant.attributes[attributeName].updatedBy = userId;
         merchant.updatedAt = date;
+        merchant.updatedBy = userId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }

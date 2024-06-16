@@ -24,12 +24,16 @@ class ChannelPolicyAssetTransfer extends Contract {
         console.info('[INFO] Initialized the ledger for channel policy asset transfer');
     }
 
+    _getCommonNameFromId(idString) {
+        const match = idString.match(/CN=([^:]+)/);
+        return match ? match[1] : null;
+    }
+
     async fetchOperatorList(ctx) {
         return defaultOperatorList;
     }
 
-    async createPaymentChannel(ctx, name, uuid, date) {
-        const channelId = `channel_${uuid}`;
+    async createPaymentChannel(ctx, name, channelId, date) {
         const channel = {
             docType: DOC_TYPE,
             channelId,
@@ -45,8 +49,8 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async fetchAllPaymentChannelData(ctx) {
-        const startKey = 'channel_';
-        const endKey = 'channel_z';
+        const startKey = 'payment_provider_';
+        const endKey = 'payment_provider_z';
 
         const iterator = await ctx.stub.getStateByRange(startKey, endKey);
         const allResults = [];
@@ -75,12 +79,17 @@ class ChannelPolicyAssetTransfer extends Contract {
         isOperatorValid(operator, policyName, value)
         isAttributeValid(policyName, value)
 
+        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+
         channel.policies[policyName] = {
             operator,
             value,
             createdAt: date,
+            updatedAt: date,
+            updatedBy: userId
         };
         channel.updatedAt = date;
+        channel.updatedBy = userId;
 
         await ctx.stub.putState(uid, Buffer.from(JSON.stringify(channel)));
     }
