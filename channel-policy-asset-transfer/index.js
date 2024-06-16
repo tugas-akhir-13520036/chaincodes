@@ -1,7 +1,7 @@
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
-const { defaultOperatorList, normalizeValue, isAttributeValid, isOperatorValid } = require('./constant');
+const { MSP, defaultOperatorList, normalizeValue, isAttributeValid, isOperatorValid } = require('./constant');
 
 const DOC_TYPE = "channelPolicy";
 
@@ -29,11 +29,23 @@ class ChannelPolicyAssetTransfer extends Contract {
         return match ? match[1] : null;
     }
 
+    _mspValidation(ctx, mspList) {
+        const msp = ctx.clientIdentity.getMSPID();
+        const res = mspList.includes(msp);
+
+        if (!res) {
+            throw new Error(`Client is not authorized to perform this operation`);
+        }
+
+        return res;
+    }
+
     async fetchOperatorList(ctx) {
         return defaultOperatorList;
     }
 
     async createPaymentChannel(ctx, name, channelId, date) {
+        this._mspValidation(ctx, [MSP.PAYMENT_PROVIDER]);
         const channel = {
             docType: DOC_TYPE,
             channelId,
@@ -49,6 +61,7 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async fetchAllPaymentChannelData(ctx) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const startKey = 'payment_provider_';
         const endKey = 'payment_provider_z';
 
@@ -67,12 +80,42 @@ class ChannelPolicyAssetTransfer extends Contract {
         return allResults;
     }
 
+    async fetchAllPaymentChannelDataByMerchant(ctx) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+        const startKey = 'payment_provider_';
+        const endKey = 'payment_provider_z';
+
+        const iterator = await ctx.stub.getStateByRange(startKey, endKey);
+        const allResults = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                delete obj.policies;
+                allResults.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return allResults;
+    }
+
+    async fetchOwnChannelData(ctx) {
+        this._mspValidation(ctx, [MSP.PAYMENT_PROVIDER]);
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const channel = await validateAndGetChannel(ctx, uid);
+        return channel;
+    }
+
     async fetchChannelData(ctx, uid) {
+        this._mspValidation(ctx, [MSP.ADMIN, MSP.MERCHANT]);
         const channel = await validateAndGetChannel(ctx, uid);
         return channel;
     }
 
     async upsertChannelPolicy(ctx, policyName, value, operator, date) {
+        this._mspValidation(ctx, [MSP.PAYMENT_PROVIDER]);
         const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const channel = await validateAndGetChannel(ctx, uid);
         value = normalizeValue(value, policyName);
@@ -94,6 +137,7 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async deleteChannelPolicy(ctx, policyName, date) {
+        this._mspValidation(ctx, [MSP.PAYMENT_PROVIDER]);
         const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const channel = await validateAndGetChannel(ctx, uid);
 
@@ -105,7 +149,26 @@ class ChannelPolicyAssetTransfer extends Contract {
         }
     }
 
+    async queryOwnHistory(ctx) {
+        this._mspValidation(ctx, [MSP.PAYMENT_PROVIDER]);
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        let iterator = await ctx.stub.getHistoryForKey(uid);
+        let result = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                result.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return result; 
+    }
+
     async queryHistory(ctx, uid) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         let iterator = await ctx.stub.getHistoryForKey(uid);
         let result = [];
         let res = await iterator.next();

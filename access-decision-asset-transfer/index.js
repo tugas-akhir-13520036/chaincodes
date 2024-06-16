@@ -9,6 +9,12 @@ const ATTR_STATUS = {
     INACTIVE: 'INACTIVE'
 };
 
+const MSP = {
+    MERCHANT: 'Org1MSP',
+    ADMIN: 'Org2MSP',
+    PAYMENT_PROVIDER: 'Org3MSP'
+}
+
 const generateEngine = (channel) => {
     const engine = new Engine();
 
@@ -66,10 +72,21 @@ class AccessDecisionAssetTransfer extends Contract {
         return match ? match[1] : null;
     }
 
-    async getDecision(ctx, channelId) {
-        const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+    _mspValidation(ctx, mspList) {
+        const msp = ctx.clientIdentity.getMSPID();
+        const res = mspList.includes(msp);
 
-        const merchantRes = await ctx.stub.invokeChaincode('merchant-attr-asset-transfer', [Buffer.from('fetchMerchantData'), Buffer.from(merchantId)]);
+        if (!res) {
+            throw new Error(`Client is not authorized to perform this operation`);
+        }
+
+        return res;
+    }
+
+    async getDecision(ctx, channelId) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+
+        const merchantRes = await ctx.stub.invokeChaincode('merchant-attr-asset-transfer', [Buffer.from('fetchOwnMerchantData')]);
         const channelRes = await ctx.stub.invokeChaincode('channel-policy-asset-transfer', [Buffer.from('fetchChannelData'), Buffer.from(channelId)]);
 
         if (merchantRes.status !== 200) {

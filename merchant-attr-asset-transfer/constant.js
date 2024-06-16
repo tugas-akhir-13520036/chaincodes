@@ -4,6 +4,12 @@ const attrType = {
     BOOLEAN: 'boolean',
 }
 
+const MSP = {
+    MERCHANT: 'Org1MSP',
+    ADMIN: 'Org2MSP',
+    PAYMENT_PROVIDER: 'Org3MSP'
+}
+
 const convertToNumber = (value) => {
     try {
         return Number(value);
@@ -252,6 +258,7 @@ const isOperatorValid = (operator, key, value) => {
 
 module.exports = { 
     attributeList, 
+    MSP,
     defaultOperatorList, 
     normalizeValue,
     isAttributeValid,

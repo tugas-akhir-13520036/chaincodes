@@ -2,7 +2,7 @@
 
 const { Contract } = require('fabric-contract-api');
 
-const { attributeList, isAttributeValid, normalizeValue } = require('./constant');
+const { MSP, attributeList, isAttributeValid, normalizeValue } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
 
@@ -36,11 +36,23 @@ class MerchantAttrAssetTransfer extends Contract {
         return match ? match[1] : null;
     }
 
+    _mspValidation(ctx, mspList) {
+        const msp = ctx.clientIdentity.getMSPID();
+        const res = mspList.includes(msp);
+
+        if (!res) {
+            throw new Error(`Client is not authorized to perform this operation`);
+        }
+
+        return res;
+    }
+
     async getAttributesList(ctx) {
         return attributeList;
     }
 
     async createMerchant(ctx, name, merchantId, date) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
         const merchant = {
             docType: DOC_TYPE,
             merchantId,
@@ -56,6 +68,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchAllMerchantData(ctx) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const startKey = 'merchant_';
         const endKey = 'merchant_z';
 
@@ -75,12 +88,21 @@ class MerchantAttrAssetTransfer extends Contract {
         return allResults;
     }
 
+    async fetchOwnMerchantData(ctx) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+        const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
+        return merchant;
+    }
+
     async fetchMerchantData(ctx, merchantId) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
         return merchant;
     }
 
     async proposeMerchantAttr(ctx, attributeName, attributeValue, uuid, date) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
         const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const merchant = await validateAndGetMerchant(ctx, merchantId);
         attributeValue = normalizeValue(attributeValue, attributeName);
@@ -106,7 +128,23 @@ class MerchantAttrAssetTransfer extends Contract {
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
 
+    async fetchPendingOwnMerchantAttr(ctx) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+        const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const merchant = await validateAndGetMerchant(ctx, merchantId);
+
+        const pendingAttributes = Object.keys(merchant.attributes).filter(attr => merchant.attributes[attr].status === ATTR_STATUS.PENDING);
+
+        const result = {};
+        pendingAttributes.forEach(attr => {
+            result[attr] = merchant.attributes[attr];
+        });
+
+        return result;
+    }
+
     async fetchPendingMerchantAttr(ctx, merchantId) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         const pendingAttributes = Object.keys(merchant.attributes).filter(attr => merchant.attributes[attr].status === ATTR_STATUS.PENDING);
@@ -120,6 +158,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async activateMerchantAttr(ctx, merchantId, attributeName, date) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
@@ -138,6 +177,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async deactivateMerchantAttr(ctx, merchantId, attributeName, date) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
@@ -156,16 +196,40 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchPaymentChannels(ctx) {
-        const response = await ctx.stub.invokeChaincode('channel-policy-asset-transfer', [Buffer.from('fetchAllPaymentChannelData')]);
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+        const response = await ctx.stub.invokeChaincode('channel-policy-asset-transfer', [Buffer.from('fetchAllPaymentChannelDataByMerchant')]);
         if (response.status !== 200) {
             throw new Error(`Failed to fetch payment channels: ${response.message}`);
         }
         const channels = JSON.parse(response.payload.toString());
 
+        channels.forEach(channel => {
+            delete channel.policies;
+        });
+
         return channels;
     }
 
+    async queryOwnHistory(ctx) {
+        this._mspValidation(ctx, [MSP.MERCHANT]);
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        let iterator = await ctx.stub.getHistoryForKey(uid);
+        let result = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value) {
+                console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
+                const obj = JSON.parse(res.value.value.toString('utf8'));
+                result.push(obj);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return result; 
+    }
+
     async queryHistory(ctx, uid) {
+        this._mspValidation(ctx, [MSP.ADMIN]);
         let iterator = await ctx.stub.getHistoryForKey(uid);
         let result = [];
         let res = await iterator.next();
