@@ -72,26 +72,37 @@ class ChannelPolicyAssetTransfer extends Contract {
         return channel;
     }
 
-    async upsertChannelPolicy(ctx, uid, policyName, value, operator, date) {
+    async upsertChannelPolicy(ctx, policyName, value, operator, date) {
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const channel = await validateAndGetChannel(ctx, uid);
         value = normalizeValue(value, policyName);
 
         isOperatorValid(operator, policyName, value)
         isAttributeValid(policyName, value)
 
-        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
-
         channel.policies[policyName] = {
             operator,
             value,
             createdAt: date,
             updatedAt: date,
-            updatedBy: userId
+            updatedBy: uid
         };
         channel.updatedAt = date;
-        channel.updatedBy = userId;
+        channel.updatedBy = uid;
 
         await ctx.stub.putState(uid, Buffer.from(JSON.stringify(channel)));
+    }
+
+    async deleteChannelPolicy(ctx, policyName, date) {
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const channel = await validateAndGetChannel(ctx, uid);
+
+        if (channel.policies[policyName]) {
+            delete channel.policies[policyName];
+            channel.updatedAt = date;
+            channel.updatedBy = this._getCommonNameFromId(ctx.clientIdentity.getID());
+            await ctx.stub.putState(uid, Buffer.from(JSON.stringify(channel)));
+        }
     }
 
     async queryHistory(ctx, uid) {

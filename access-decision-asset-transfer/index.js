@@ -9,41 +9,11 @@ const ATTR_STATUS = {
     INACTIVE: 'INACTIVE'
 };
 
-const validateAndGetMerchant = async (ctx, merchantId) => {
-    const merchantAsBytes = await ctx.stub.getState(merchantId);
-    if (!merchantAsBytes || merchantAsBytes.length === 0) {
-        throw new Error(`Merchant with merchantId ${merchantId} does not exist`);
-    }
-
-    const DOC_TYPE = "merchantAttr";
-    const merchant = JSON.parse(merchantAsBytes.toString());
-    if (merchant.docType !== DOC_TYPE) {
-        throw new Error(`Document type is not ${DOC_TYPE}`);
-    }
-
-    return merchant;
-}
-
-const validateAndGetChannel = async (ctx, channelId) => {
-    const channelAsBytes = await ctx.stub.getState(channelId);
-    if (!channelAsBytes || channelAsBytes.length === 0) {
-        throw new Error(`Channel with channelId ${channelId} does not exist`);
-    }
-
-    const DOC_TYPE = "channelPolicy";
-    const channel = JSON.parse(channelAsBytes.toString());
-    if (channel.docType !== DOC_TYPE) {
-        throw new Error(`Document type is not ${DOC_TYPE}`);
-    }
-
-    return channel;
-}
-
 const generateEngine = (channel) => {
     const engine = new Engine();
 
     const policies = channel.policies;
-    const conditions = [];
+    const policyConditions = [];
 
     for (let key in policies) {
         if (policies.hasOwnProperty(key)) {
@@ -53,12 +23,14 @@ const generateEngine = (channel) => {
                 operator: policy.operator,
                 value: policy.value
             };
-            conditions.push(condition);
+            policyConditions.push(condition);
         }
     }
 
     engine.addRule({
-        conditions,
+        conditions: {
+            all: policyConditions
+        },
         event: {
             type: 'decision',
             params: {
@@ -89,14 +61,40 @@ class AccessDecisionAssetTransfer extends Contract {
         console.info('[INFO] Initialized the ledger for access decision asset transfer');
     }
 
-    async getDecision(ctx, merchantId, channelId) {
-        const merchant = await validateAndGetMerchant(ctx, merchantId);
-        const channel = await validateAndGetChannel(ctx, channelId);
+    _getCommonNameFromId(idString) {
+        const match = idString.match(/CN=([^:]+)/);
+        return match ? match[1] : null;
+    }
 
-        const engine = generateEngine(channel);
+    async getDecision(ctx, channelId) {
+        const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+
+        const merchantRes = await ctx.stub.invokeChaincode('merchant-attr-asset-transfer', [Buffer.from('fetchMerchantData'), Buffer.from(merchantId)]);
+        const channelRes = await ctx.stub.invokeChaincode('channel-policy-asset-transfer', [Buffer.from('fetchChannelData'), Buffer.from(channelId)]);
+
+        if (merchantRes.status !== 200) {
+            throw new Error(`Failed to fetch merchant data: ${merchantRes.message}`);
+        }
+        const merchant = JSON.parse(merchantRes.payload.toString());
+
+        if (channelRes.status !== 200) {
+            throw new Error(`Failed to fetch payment data: ${channelRes.message}`);
+        }
+        const channel = JSON.parse(channelRes.payload.toString());
+
+        if (!channel.policies) return false;
+
         const fact = generateFact(merchant);
+        const engine = generateEngine(channel);
 
-        const result = await engine.run(fact);
+        let result;
+        try{
+            result = await engine.run(fact);
+        } catch (error) {
+            console.error(`[ERROR] Failed to run the engine: ${error}`);
+            return false;
+        }
+
         return result.events.length > 0;
     }
 }

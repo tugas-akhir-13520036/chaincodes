@@ -72,18 +72,6 @@ class MerchantAttrAssetTransfer extends Contract {
             res = await iterator.next();
         }
 
-        // for await (const res of iterator) {
-        //     const strValue = Buffer.from(res.value).toString('utf8');
-        //     let record;
-        //     try {
-        //         record = JSON.parse(strValue);
-        //     } catch (err) {
-        //         console.log(err);
-        //         record = strValue;
-        //     }
-        //     allResults.push({ Key: res.key, Record: record });
-        // }
-
         return allResults;
     }
 
@@ -92,7 +80,8 @@ class MerchantAttrAssetTransfer extends Contract {
         return merchant;
     }
 
-    async proposeMerchantAttr(ctx, merchantId, attributeName, attributeValue, uuid, date) {
+    async proposeMerchantAttr(ctx, attributeName, attributeValue, uuid, date) {
+        const merchantId = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const merchant = await validateAndGetMerchant(ctx, merchantId);
         attributeValue = normalizeValue(attributeValue, attributeName);
 
@@ -100,7 +89,6 @@ class MerchantAttrAssetTransfer extends Contract {
             throw new Error(`Attribute ${attributeName} is not valid`);
         }
 
-        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
         const idempotentKey = `attr_${uuid}`;
         const newAttribute = {
             idempotentKey: idempotentKey,
@@ -108,12 +96,12 @@ class MerchantAttrAssetTransfer extends Contract {
             status: ATTR_STATUS.PENDING,
             createdAt: date,
             updatedAt: date,
-            updatedBy: userId,
+            updatedBy: merchantId,
         };
 
         merchant.attributes[attributeName] = newAttribute;
         merchant.updatedAt = date;
-        merchant.updatedBy = userId;
+        merchant.updatedBy = merchantId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
@@ -167,6 +155,16 @@ class MerchantAttrAssetTransfer extends Contract {
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
     }
 
+    async fetchPaymentChannels(ctx) {
+        const response = await ctx.stub.invokeChaincode('channel-policy-asset-transfer', [Buffer.from('fetchAllPaymentChannelData')]);
+        if (response.status !== 200) {
+            throw new Error(`Failed to fetch payment channels: ${response.message}`);
+        }
+        const channels = JSON.parse(response.payload.toString());
+
+        return channels;
+    }
+
     async queryHistory(ctx, uid) {
         let iterator = await ctx.stub.getHistoryForKey(uid);
         let result = [];
@@ -181,6 +179,10 @@ class MerchantAttrAssetTransfer extends Contract {
         }
         await iterator.close();
         return result; 
+    }
+
+    async getMspId(ctx) {
+        return ctx.clientIdentity.getMSPID();
     }
 }
 
