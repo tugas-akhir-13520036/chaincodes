@@ -4,9 +4,14 @@ const attrType = {
     BOOLEAN: 'boolean',
 }
 
+const activationStatus = {
+    ACTIVATE: 'ACTIVATE',
+    DEACTIVATE: 'DEACTIVATE'
+}
+
 const MSP = {
     MERCHANT: 'Org1MSP',
-    ADMIN: 'Org2MSP',
+    ATTRIBUTE_AUTHORITY: 'Org2MSP',
     PAYMENT_PROVIDER: 'Org3MSP'
 }
 
@@ -260,6 +265,7 @@ module.exports = {
     attributeList, 
     MSP,
     defaultOperatorList, 
+    activationStatus,
     normalizeValue,
     isAttributeValid,
     isOperatorValid

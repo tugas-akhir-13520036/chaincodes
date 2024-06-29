@@ -2,9 +2,10 @@
 
 const { Contract } = require('fabric-contract-api');
 
-const { MSP, attributeList, isAttributeValid, normalizeValue } = require('./constant');
+const { MSP, attributeList, activationStatus, isAttributeValid, normalizeValue } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
+const ACTIVATION_RECORD_DOC_TYPE = "activationRecord";
 
 const ATTR_STATUS = {
     PENDING: 'PENDING',
@@ -68,7 +69,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchAllMerchantData(ctx) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const startKey = 'merchant_';
         const endKey = 'merchant_z';
 
@@ -80,6 +81,8 @@ class MerchantAttrAssetTransfer extends Contract {
             if (res.value) {
                 console.info(`found state update with value: ${res.value.value.toString('utf8')}`);
                 const obj = JSON.parse(res.value.value.toString('utf8'));
+
+                if (obj.docType !== DOC_TYPE) continue;
                 allResults.push(obj);
             }
             res = await iterator.next();
@@ -96,7 +99,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchMerchantData(ctx, merchantId) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
         return merchant;
     }
@@ -144,7 +147,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async fetchPendingMerchantAttr(ctx, merchantId) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         const pendingAttributes = Object.keys(merchant.attributes).filter(attr => merchant.attributes[attr].status === ATTR_STATUS.PENDING);
@@ -158,41 +161,98 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async activateMerchantAttr(ctx, merchantId, attributeName, date) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
             throw new Error(`Attribute ${attributeName} does not exist`);
         }
 
-        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const attributeAuthorityId = this._getCommonNameFromId(ctx.clientIdentity.getID());
 
         merchant.attributes[attributeName].status = ATTR_STATUS.ACTIVE;
         merchant.attributes[attributeName].updatedAt = date;
-        merchant.attributes[attributeName].updatedBy = userId;
+        merchant.attributes[attributeName].updatedBy = attributeAuthorityId;
         merchant.updatedAt = date;
-        merchant.updatedBy = userId;
+        merchant.updatedBy = attributeAuthorityId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
+
+        let currentActivationRecord;
+        const activationRecordAsBytes = await ctx.stub.getState(attributeAuthorityId);
+        if (!activationRecordAsBytes || activationRecordAsBytes.length === 0) {
+            currentActivationRecord = {
+                docType: ACTIVATION_RECORD_DOC_TYPE,
+                attributeAuthorityId: attributeAuthorityId,
+                records: []
+            };
+        } else {
+            currentActivationRecord = JSON.parse(activationRecordAsBytes.toString());
+        }
+
+        const record = {
+            merchantId,
+            attributeName,
+            date,
+            method: activationStatus.ACTIVATE
+        }
+
+        currentActivationRecord.records.push(record);
+        await ctx.stub.putState(attributeAuthorityId, Buffer.from(JSON.stringify(currentActivationRecord)));
     }
 
     async deactivateMerchantAttr(ctx, merchantId, attributeName, date) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
             throw new Error(`Attribute ${attributeName} does not exist`);
         }
 
-        const userId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const attributeAuthorityId = this._getCommonNameFromId(ctx.clientIdentity.getID());
 
         merchant.attributes[attributeName].status = ATTR_STATUS.INACTIVE;
         merchant.attributes[attributeName].updatedAt = date;
-        merchant.attributes[attributeName].updatedBy = userId;
+        merchant.attributes[attributeName].updatedBy = attributeAuthorityId;
         merchant.updatedAt = date;
-        merchant.updatedBy = userId;
+        merchant.updatedBy = attributeAuthorityId;
 
         await ctx.stub.putState(merchantId, Buffer.from(JSON.stringify(merchant)));
+
+        let currentActivationRecord;
+        const activationRecordAsBytes = await ctx.stub.getState(attributeAuthorityId);
+        if (!activationRecordAsBytes || activationRecordAsBytes.length === 0) {
+            currentActivationRecord = {
+                docType: ACTIVATION_RECORD_DOC_TYPE,
+                attributeAuthorityId: attributeAuthorityId,
+                records: []
+            };
+        } else {
+            currentActivationRecord = JSON.parse(activationRecordAsBytes.toString());
+        }
+
+        const record = {
+            merchantId,
+            attributeName,
+            date,
+            method: activationStatus.DEACTIVATE
+        }
+
+        currentActivationRecord.records.push(record);
+        await ctx.stub.putState(attributeAuthorityId, Buffer.from(JSON.stringify(currentActivationRecord)));
+    }
+
+    async fetchActivationRecord(ctx) {
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
+        const attributeAuthorityId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const activationRecordAsBytes = await ctx.stub.getState(attributeAuthorityId);
+
+        if (!activationRecordAsBytes || activationRecordAsBytes.length === 0) {
+            return [];
+        }
+
+        const activationRecord = JSON.parse(activationRecordAsBytes.toString());
+        return activationRecord.records;
     }
 
     async fetchPaymentChannels(ctx) {
@@ -229,7 +289,7 @@ class MerchantAttrAssetTransfer extends Contract {
     }
 
     async queryHistory(ctx, uid) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         let iterator = await ctx.stub.getHistoryForKey(uid);
         let result = [];
         let res = await iterator.next();

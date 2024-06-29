@@ -11,7 +11,7 @@ const ATTR_STATUS = {
 
 const MSP = {
     MERCHANT: 'Org1MSP',
-    ADMIN: 'Org2MSP',
+    ATTRIBUTE_AUTHORITY: 'Org2MSP',
     PAYMENT_PROVIDER: 'Org3MSP'
 }
 

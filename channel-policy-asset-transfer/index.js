@@ -61,7 +61,7 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async fetchAllPaymentChannelData(ctx) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         const startKey = 'payment_provider_';
         const endKey = 'payment_provider_z';
 
@@ -109,7 +109,7 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async fetchChannelData(ctx, uid) {
-        this._mspValidation(ctx, [MSP.ADMIN, MSP.MERCHANT]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY, MSP.MERCHANT]);
         const channel = await validateAndGetChannel(ctx, uid);
         return channel;
     }
@@ -168,7 +168,7 @@ class ChannelPolicyAssetTransfer extends Contract {
     }
 
     async queryHistory(ctx, uid) {
-        this._mspValidation(ctx, [MSP.ADMIN]);
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
         let iterator = await ctx.stub.getHistoryForKey(uid);
         let result = [];
         let res = await iterator.next();
