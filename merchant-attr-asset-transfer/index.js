@@ -5,7 +5,7 @@ const { Contract } = require('fabric-contract-api');
 const { MSP, attributeList, activationStatus, isAttributeValid, normalizeValue } = require('./constant');
 
 const DOC_TYPE = "merchantAttr";
-const ACTIVATION_RECORD_DOC_TYPE = "activationRecord";
+const ATTR_AUTHORITY_DOC_TYPE = "attributeAuthority";
 
 const ATTR_STATUS = {
     PENDING: 'PENDING',
@@ -46,6 +46,25 @@ class MerchantAttrAssetTransfer extends Contract {
         }
 
         return res;
+    }
+
+    async _validateAuthorityAttribute(ctx, attributeName) {
+        const attributeAuthorityId = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const attributeAuthorityAsBytes = await ctx.stub.getState(attributeAuthorityId);
+        if (!attributeAuthorityAsBytes || attributeAuthorityAsBytes.length === 0) {
+            throw new Error(`Attribute authority with attributeAuthorityId ${attributeAuthorityId} does not exist`);
+        }
+    
+        const attributeAuthority = JSON.parse(attributeAuthorityAsBytes.toString());
+        if (attributeAuthority.docType !== ATTR_AUTHORITY_DOC_TYPE) {
+            throw new Error(`Document type is not ${ATTR_AUTHORITY_DOC_TYPE}`);
+        }
+    
+        if (!attributeAuthority.attributes.includes(attributeName)) {
+            throw new Error(`Attribute ${attributeName} is not authorized for this operation`);
+        }
+    
+        return attributeAuthority;
     }
 
     async getAttributesList(ctx) {
@@ -162,6 +181,7 @@ class MerchantAttrAssetTransfer extends Contract {
 
     async activateMerchantAttr(ctx, merchantId, attributeName, date) {
         this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
+        await this._validateAuthorityAttribute(ctx, attributeName);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
@@ -182,7 +202,7 @@ class MerchantAttrAssetTransfer extends Contract {
         const activationRecordAsBytes = await ctx.stub.getState(attributeAuthorityId);
         if (!activationRecordAsBytes || activationRecordAsBytes.length === 0) {
             currentActivationRecord = {
-                docType: ACTIVATION_RECORD_DOC_TYPE,
+                docType: ATTR_AUTHORITY_DOC_TYPE,
                 attributeAuthorityId: attributeAuthorityId,
                 records: []
             };
@@ -203,6 +223,7 @@ class MerchantAttrAssetTransfer extends Contract {
 
     async deactivateMerchantAttr(ctx, merchantId, attributeName, date) {
         this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
+        await this._validateAuthorityAttribute(ctx, attributeName);
         const merchant = await validateAndGetMerchant(ctx, merchantId);
 
         if (!merchant.attributes[attributeName]) {
@@ -223,7 +244,7 @@ class MerchantAttrAssetTransfer extends Contract {
         const activationRecordAsBytes = await ctx.stub.getState(attributeAuthorityId);
         if (!activationRecordAsBytes || activationRecordAsBytes.length === 0) {
             currentActivationRecord = {
-                docType: ACTIVATION_RECORD_DOC_TYPE,
+                docType: ATTR_AUTHORITY_DOC_TYPE,
                 attributeAuthorityId: attributeAuthorityId,
                 records: []
             };
@@ -303,6 +324,38 @@ class MerchantAttrAssetTransfer extends Contract {
         }
         await iterator.close();
         return result; 
+    }
+
+    async mockGenerateAttributeAuthority(ctx, attributes) {
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+
+        // split attributes by comma
+        attributes = attributes.split(',').map(attr => attr.trim());
+        const attributeAuthority = {
+            docType: ATTR_AUTHORITY_DOC_TYPE,
+            attributeAuthorityId: uid,
+            records: [],
+            attributes // array of string
+        };
+
+        await ctx.stub.putState(uid, Buffer.from(JSON.stringify(attributeAuthority)));
+    }
+
+    async getAuthorityEligibleAttributes(ctx) {
+        this._mspValidation(ctx, [MSP.ATTRIBUTE_AUTHORITY]);
+        const uid = this._getCommonNameFromId(ctx.clientIdentity.getID());
+        const attributeAuthorityAsBytes = await ctx.stub.getState(uid);
+        if (!attributeAuthorityAsBytes || attributeAuthorityAsBytes.length === 0) {
+            throw new Error(`Attribute authority with attributeAuthorityId ${uid} does not exist`);
+        }
+
+        const attributeAuthority = JSON.parse(attributeAuthorityAsBytes.toString());
+        if (attributeAuthority.docType !== ATTR_AUTHORITY_DOC_TYPE) {
+            throw new Error(`Document type is not ${ATTR_AUTHORITY_DOC_TYPE}`);
+        }
+
+        return attributeAuthority.attributes;
     }
 
     async getMspId(ctx) {
